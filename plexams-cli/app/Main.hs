@@ -7,7 +7,7 @@ import           Data.Semigroup      ((<>))
 import           Options.Applicative
 import           Plexams
 import           Plexams.Export
-import           Plexams.GUI
+--import           Plexams.GUI
 import           Plexams.Import
 import           Plexams.PlanManip
 import           Plexams.Query
