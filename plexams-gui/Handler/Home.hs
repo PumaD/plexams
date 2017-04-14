@@ -18,16 +18,16 @@ data FileForm = FileForm
 -- inclined, or create a single monolithic file.
 getHomeR :: Handler Html
 getHomeR = do
-    let handlerName = "getHomeR" :: Text
+    --let handlerName = "getHomeR" :: Text
     defaultLayout $ do
-        aDomId <- newIdent
+ --       aDomId <- newIdent
         setTitle "Welcome To Yesod!"
         $(widgetFile "homepage")
 
 postHomeR :: Handler Html
 postHomeR = do
-    let handlerName = "postHomeR" :: Text
+  -- let handlerName = "postHomeR" :: Text
     defaultLayout $ do
-        aDomId <- newIdent
+  --      aDomId <- newIdent
         setTitle "Welcome To Yesod!"
         $(widgetFile "homepage")

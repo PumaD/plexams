@@ -6,15 +6,12 @@
     <script src="http://ui-grid.info/docs/grunt-scripts/vfs_fonts.js">
     <script src="http://ui-grid.info/release/ui-grid-unstable.js">
     <link rel="stylesheet" href="http://ui-grid.info/release/ui-grid-unstable.css" type="text/css">
-    <link rel="stylesheet" href="main.css" type="text/css">
   
   <body>
 
 <div ng-controller="MainCtrl">
   <button type="button" class="btn btn-success" ng-click="refreshData()">Refresh Data
   <br>
-  <br>
-  <strong>{{ myData.length }} rows
   <br>
   <div ui-grid="gridOptions" ui-grid-cellNav ui-grid-edit ui-grid-resize-columns ui-grid-pinning class="grid">
   

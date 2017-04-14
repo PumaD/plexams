@@ -2,55 +2,57 @@ var app = angular.module('app', ['ui.grid', 'ui.grid.cellNav', 'ui.grid.edit', '
 
 app.controller('MainCtrl',  ['$scope', '$http', '$timeout', '$interval', function ($scope, $http, $timeout, $interval) {
 
-  $scope.gridOptions = {};
-  $scope.gridOptions.data = 'myData';
-  $scope.gridOptions.enableColumnResizing = true;
-  
-  $scope.gridOptions.rowIdentity = function(row) {
-    return row.id;
-  };
-  $scope.gridOptions.getRowIdentity = function(row) {
-    return row.id;
-  };
+    $scope.gridOptions = { rowHeight: 60,
+        onRegisterApi: function (gridApi) {
+            $scope.gridApi = gridApi;
+            var cellTemplate = 'ui-grid/selectionRowHeader';   // you could use your own template here
+            $scope.gridApi.core.addRowHeaderColumn({
+                    name: 'rowHeaderCol',
+                    displayName: '', width: 80,
+                    cellTemplate: "<div class=\"ui-grid-row-header-cell ui-grid-disable-selection\"><div class=\"ui-grid-cell-contents\">{{row.entity['rowHeader']}}</div></div>"
+                }
+            );
+        }
+    };
+    $scope.gridOptions.data = 'myData';
+    $scope.gridOptions.enableColumnResizing = true;
 
-  $scope.gridOptions.columnDefs = [
-    { name:'name', width:100 },
-    { name:'gender', width:100, enableCellEdit: true, cellTemplate: '<div class="ui-grid-cell-contents"><span>Age:{{COL_FIELD}}</span></div>'   },
-    { name:'company', width:150, enableCellEdit: true, cellTemplate: '<div class="ui-grid-cell-contents"><span>Street:{{COL_FIELD}}</span></div>'   },
-];
+    $scope.gridOptions.rowIdentity = function (row) {
+        return row.id;
+    };
+    $scope.gridOptions.getRowIdentity = function (row) {
+        return row.id;
+    };
 
-  $scope.callsPending = 0;
+    $scope.gridOptions.columnDefs = [
+        {name: '1stDay', width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: '2ndDay', width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: '3rdDay', width: 200},
+        {name: '4thDay', width: 200},
+        {name: '5thDay', width: 200},
+        {name: '6thDay', width: 200},
+        {name: '7thDay', width: 200},
+        {name: '8thDay', width: 200},
+        {name: '9thDay', width: 200},
+        {name: '10thDay', width: 200},
 
-  var i = 0;
-  $scope.refreshData = function(){
-    $scope.myData = [];
 
-    var start = new Date();
-    var sec = $interval(function () {
-      $scope.callsPending++;
-      
-      $http.get('static/json/100.json')
-        .success(function(data) {
-          $scope.callsPending--;
+        // {
+        //     name: 'gender', width: 200, enableCellEdit: true,
+        //     cellTemplate: '<div class="ui-grid-cell-contents"><span>Age:{{COL_FIELD}}</span></div>'
+        // },
+        // {
+        //     name: 'company', width: 200, enableCellEdit: true,
+        //     cellTemplate: '<div class="ui-grid-cell-contents"><span>Street:{{COL_FIELD}}</span></div>'
+        // },
+    ];
 
-          data.forEach(function(row){
-            row.name = row.name + ' iter ' + i;
-            row.id = i;
-            i++;
-            $scope.myData.push(row);
-          });
-        })
-        .error(function() {
-          $scope.callsPending--
+    //$scope.gridOptions = { rowHeight:60}
+
+    $scope.refreshData = function () {
+        $http.get('/static/json/100.json').success(function (data) {
+            $scope.myData = data;
+            $scope.gridOptions.data = $scope.myData;
         });
-    }, 200);
-
-
-    $timeout(function() {
-       $interval.cancel(sec);
-       $scope.left = '';
-    }, 2000);
-
-  };
-
-}]);
+    };
+}])
