@@ -25,16 +25,16 @@ app.controller('MainCtrl',  ['$scope', '$http', '$timeout', '$interval', functio
     };
 
     $scope.gridOptions.columnDefs = [
-        {name: '1stDay', width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
-        {name: '2ndDay', width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
-        {name: '3rdDay', width: 200},
-        {name: '4thDay', width: 200},
-        {name: '5thDay', width: 200},
-        {name: '6thDay', width: 200},
-        {name: '7thDay', width: 200},
-        {name: '8thDay', width: 200},
-        {name: '9thDay', width: 200},
-        {name: '10thDay', width: 200},
+        {name: 'Day1', displayName: "Day 1", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day2', displayName: "Day 2", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day3', displayName: "Day 3", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day4', displayName: "Day 4", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day5', displayName: "Day 5", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day6', displayName: "Day 6", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day7', displayName: "Day 7", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day8', displayName: "Day 8", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day9', displayName: "Day 9", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
+        {name: 'Day10', displayName: "Day 10", width: 200, cellTemplate:'<div ng-repeat="item in row.entity[col.field]">{{item}}</div>'},
 
 
         // {
