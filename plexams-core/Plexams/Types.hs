@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Plexams.Types
     ( Plan(..)
     , Slots
@@ -13,74 +14,117 @@ module Plexams.Types
     , AvailableRoom(..)
     , Room(..)
     , PlanManip(..)
-    , Registration
-    , Registrations
+    , Registrations(..)
+    , Constraints(..)
+    , Overlaps(..)
+    , setFK10Exam
+    , isScheduled
+    , isUnscheduled
     ) where
 
 import qualified Data.Map           as M
+import           Data.Maybe         (isJust)
 import           Data.Time.Calendar
+import           GHC.Generics
 
 data SemesterConfig = SemesterConfig
     { semester        :: String   -- ^ Semester
     , firstDay        :: Day      -- ^ Erster Tag des Prüfungszeitraumes, z.B. @fromGregorian 2017 7 10@
     , lastDay         :: Day      -- ^ Letzter Tag  des Prüfungszeitraumes, z.B. @fromGregorian 2017 7 21@
     , examDays        :: [Day]    -- ^ vom ersten bis letzten Tag OHNE Wochenende
+    , goSlots         :: [(Int, Int)]
     , slotsPerDay     :: [String] -- ^ Liste von Slots als Zeitstrings in der Form @HH:MM@. Ein Slot ist IMMER 120 Minuten lang
     , initialPlanFile :: FilePath -- ^ Datei in der die Prüfungen für das Semester vom ZPA stehen
     , planManipFile   :: FilePath -- ^ Datei in der die Prüfungen für das Semester vom ZPA stehen
     , availableRooms  :: [AvailableRoom]
+    , fk10Exams       :: [[Integer]]
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 data AvailableRoom = AvailableRoom
-    { availableRoomName :: String
+    { availableRoomName     :: String
     , availableRoomMaxSeats :: Integer
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 data Plan = Plan
     { semesterConfig   :: SemesterConfig
     , slots            :: Slots
-    , unscheduledExams :: [Exam]     -- ^ Liste der Prüfungen die noch keinem Slot zugeordnet sind
+    , unscheduledExams :: M.Map Integer Exam  -- ^ Liste der Prüfungen die noch keinem Slot zugeordnet sind
+                                              -- Ancode -> Exam
     , persons          :: Persons
+    , constraints      :: Maybe Constraints
+    , initialPlan      :: [Exam]
     }
   deriving (Show, Eq)
+
+isScheduledAncode :: Ancode -> Plan -> Bool
+isScheduledAncode ancode =
+  elem ancode
+  . concatMap (M.keys . examsInSlot)
+  . M.elems
+  . slots
+
+isUnscheduledAncode :: Ancode -> Plan -> Bool
+isUnscheduledAncode ancode =
+  elem ancode
+  . M.keys
+  . unscheduledExams
+
+isUnknownExamAncode :: Ancode -> Plan -> Bool
+isUnknownExamAncode ancode plan =
+     not (isScheduledAncode ancode plan)
+  && not (isUnscheduledAncode ancode plan)
 
 type Slots = M.Map (Int, Int) Slot
 
 setSlotsOnExams :: Plan -> Plan
 setSlotsOnExams plan = plan
     { slots = M.mapWithKey addSlotKeyToExam $ slots plan
-    , unscheduledExams = map (\e -> e { slot = Nothing })
+    , unscheduledExams = M.map (\e -> e { slot = Nothing })
                              $ unscheduledExams plan
     }
 
 addSlotKeyToExam :: (Int, Int) -> Slot -> Slot
 addSlotKeyToExam k slot =
-    slot { examsInSlot = map (addSlotKey k) $ examsInSlot slot }
+    slot { examsInSlot = M.map (addSlotKey k) $ examsInSlot slot }
   where
     addSlotKey k exam = exam { slot = Just k }
 
 data Slot = Slot
-    { examsInSlot        :: [Exam]
+    { examsInSlot        :: M.Map Integer Exam -- Ancode -> Exam
     , reserveInvigilator :: Maybe Integer  -- ^ Reserveaufsicht für die Prüfung
     }
   deriving (Show, Eq)
 
+type Ancode = Integer
+type Duration = Integer
+type ExamType = String
+
 data Exam = Exam
-    { anCode      :: Integer -- ^ Anmeldecode Prüfungsamt
+    { anCode      :: Ancode -- ^ Anmeldecode Prüfungsamt
     , name        :: String  -- ^ Name der Prüfung
     , lecturer    :: Person  -- ^ Prüfer
-    , duration    :: Integer -- ^ Dauer der Prüfung in Minuten
+    , duration    :: Duration -- ^ Dauer der Prüfung in Minuten
     , rooms       :: [Room]  -- ^ Liste der Räume in denen die Prüfung statt findet
     , plannedByMe :: Bool    -- ^ @False@ bei Prüfungen, die zwar mit erfasst werden, aber nicht geplant werden
                              --   können
     , reExam      :: Bool    -- ^ @True@ bei einer Wiederholungsklausur
     , groups      :: [Group]  -- ^ Studierendengruppen die an der Prüfung teilnehmen
-    , examType    :: String  -- ^ Typ der Prüfung aus ZPA
+    , examType    :: ExamType  -- ^ Typ der Prüfung aus ZPA
     , slot        :: Maybe (Int, Int) -- ^ (Tag, Slot)
     }
   deriving (Eq)
+
+isScheduled :: Exam -> Bool
+isScheduled = isJust . slot
+
+isUnscheduled :: Exam -> Bool
+isUnscheduled = not . isScheduled
+
+setFK10Exam :: [Integer] -> Exam -> Exam
+setFK10Exam ancodes exam =
+  exam { plannedByMe = anCode exam `notElem` ancodes }
 
 instance Show Exam where
     show exam = show (anCode exam) ++ ". "
@@ -106,19 +150,21 @@ data Room = Room
   deriving (Show, Eq)
 
 data Group = Group
-    { groupDegree   :: Degree
-    , groupSemester :: Maybe Int
-    , groupSubgroup :: Maybe Subgroup
+    { groupDegree        :: Degree
+    , groupSemester      :: Maybe Int
+    , groupSubgroup      :: Maybe Subgroup
+    , groupRegistrations :: Maybe Integer
     }
   deriving (Eq, Ord)
 
 instance Show Group where
-    show (Group d mI mS) = show d
+    show (Group d mI mS mReg) = show d
       ++ maybe "" show mI
       ++ maybe "" show mS
+      ++ maybe "" (("("++) . (++")") . show) mReg
 
 data Degree = IB | IC | IF | GO | IG | IN | IS
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Read)
 
 data Subgroup = A | B | C
   deriving (Show, Eq, Ord)
@@ -130,20 +176,35 @@ data Person = Person
     , personShortName :: String
     , personFullName  :: String
     }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
-data PlanManip = AddExamToSlot
-    { planManipAnCode :: Integer
-    , planManipDay    :: Int
-    , planManipSlot   :: Int
-    }
+data PlanManip =
+    AddExamToSlot
+      { planManipAnCode :: Integer
+      , planManipDay    :: Int
+      , planManipSlot   :: Int
+      }
+  | AddRoomToExam
+      { addRoomAnCode   :: Integer
+      , addRoomRoomName :: String
+      }
 
 data Registrations = Registrations
     { regsGroup :: String
-    , regs :: [Registration]
+    , regs      :: M.Map Integer Integer -- Ancode x Sum
     }
+  deriving (Show)
 
-data Registration = Registration
-    { regAnCode :: Integer
-    , regSum :: Integer
-    }
+newtype Constraints = Constraints
+  { overlaps :: [Overlaps]
+  }
+  deriving (Show, Eq)
+
+data Overlaps = Overlaps
+  { olGroup :: Group
+  , olOverlaps :: M.Map Integer    -- ancode
+                        (M.Map Integer -- otherAncode
+                               Integer -- noOfStudents
+                         )
+  }
+  deriving (Show, Eq)

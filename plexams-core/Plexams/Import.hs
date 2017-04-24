@@ -4,6 +4,8 @@ module Plexams.Import
     , importExamsFromJSONFile
     , importPlanManipFromJSONFile
     , importPlanManipFromYAMLFile
+    , importRegistrationsFromYAMLFile
+    , importOverlapsFromYAMLFile
     , parseGroup
     ) where
 
@@ -13,6 +15,7 @@ import           Data.Aeson                  (FromJSON, Value (Object), decode,
 import qualified Data.ByteString             as BSI
 import qualified Data.ByteString.Lazy        as BS
 import           Data.Char                   (digitToInt)
+import           Data.List                   (elemIndex)
 import qualified Data.Map                    as M
 import           Data.Maybe                  (fromMaybe)
 import           Data.Time                   (Day)
@@ -30,10 +33,12 @@ instance Y.FromJSON SemesterConfig where
                         <$> v Y..: "semester"
                         <*> v Y..: "firstDay"
                         <*> v Y..: "lastDay"
+                        <*> v Y..: "goDay0"
                         <*> v Y..: "slotsPerDay"
                         <*> v Y..: "initialPlan"
                         <*> v Y..: "planManip"
                         <*> v Y..: "rooms"
+                        <*> v Y..: "fk10Exams"
     parseJSON _          = empty
 
 instance Y.FromJSON AvailableRoom where
@@ -42,11 +47,11 @@ instance Y.FromJSON AvailableRoom where
                        <*> v Y..: "seats"
     parseJSON _            = empty
 
-makeSemesterConfig :: String -> String -> String -> [String]
-                    -> FilePath -> FilePath -> [AvailableRoom]
-                    -> SemesterConfig
-makeSemesterConfig s f l =
-        SemesterConfig s firstDay lastDay realExamDays
+makeSemesterConfig :: String -> String -> String -> String -> [String]
+                   -> FilePath -> FilePath -> [AvailableRoom] -> [[Integer]]
+                   -> SemesterConfig
+makeSemesterConfig s f l goDay0 =
+        SemesterConfig s firstDay lastDay realExamDays goSlots
     where makeDay :: String -> Day
           makeDay str = fromMaybe (error $ "cannot parse date: " ++ str)
              (parseTimeM True defaultTimeLocale "%d.%m.%Y" str)
@@ -54,6 +59,17 @@ makeSemesterConfig s f l =
           lastDay = makeDay l
           realExamDays = filter (notWeekend . toWeekDate) [firstDay..lastDay]
           notWeekend (_,_,weekday) = weekday <= 5
+          goDay0Index = fromMaybe 0 $ elemIndex (makeDay goDay0) realExamDays
+          goSlots = map (\(d,t) -> (d+goDay0Index, t)) rawGOSlots
+          rawGOSlots =  [ (0,0), (0,1) -- Tag 0
+                        , (1,3), (1,4), (1,5)
+                        , (2,0), (2,1)
+                        , (3,3), (3,4), (3,5)
+                        , (4,0), (4,1)
+                        , (5,3), (5,4), (5,5)
+                        , (6,0), (6,1)
+                        , (9,3), (9,4), (9,5)
+                        ]
 
 importSemesterConfigFromYAMLFile :: FilePath -> IO (Maybe SemesterConfig)
 importSemesterConfigFromYAMLFile = fmap Y.decode . BSI.readFile
@@ -135,6 +151,7 @@ parseGroup str = Group
     , groupSubgroup = if length str > 3
                           then Just (char2Subgroup $ str !! 3)
                           else Nothing
+    , groupRegistrations = Nothing
     }
   where
     str2Degree str = case str of
@@ -184,9 +201,90 @@ importPlanManipFromYAMLFile = fmap (listsToPlanManips . Y.decode) . BSI.readFile
 -- Registrations from YAML file
 --------------------------------------------------------------------------------
 
--- listToRegistrations :: (String, [[]]) -> Maybe Registrations
--- listToRegistrations
+data ImportRegistrations = ImportRegistrations
+  { iRegGroups :: String
+  , iRegs      :: [ImportRegistration]
+  }
 
--- importRegistrationsFromYAMLFile :: FilePath -> IO (Maybe Registrations)
--- importRegistrationsFromYAMLFile =
---    fmap (listToRegistrations . Y.decode) . BSI.readFile
+instance Y.FromJSON ImportRegistrations where
+  parseJSON (Y.Object v) = ImportRegistrations
+                        <$> v Y..: "group"
+                        <*> v Y..: "registrations"
+  parseJSON _            = empty
+
+data ImportRegistration = ImportRegistration
+  { iRegAncode :: Integer
+  , iRegSum    :: Integer
+  }
+
+instance Y.FromJSON ImportRegistration where
+    parseJSON (Y.Object v) = ImportRegistration
+                          <$> v Y..: "ancode"
+                          <*> v Y..: "sum"
+    parseJSON _            = empty
+
+listToRegistrations :: (String, [(Integer, Integer)]) -> Registrations
+listToRegistrations (g, regs) = Registrations g (M.fromList regs)
+
+iRegsToRegs :: ImportRegistrations -> Registrations
+iRegsToRegs (ImportRegistrations g rs) = Registrations
+  { regsGroup = g
+  , regs = M.fromList $ map (\(ImportRegistration a s) -> (a, s)) rs
+  }
+
+iRegsLToRegsL = map iRegsToRegs
+
+importRegistrationsFromYAMLFile :: FilePath -> IO (Maybe [Registrations])
+importRegistrationsFromYAMLFile =
+    fmap (fmap iRegsLToRegsL . Y.decode) . BSI.readFile
+
+--------------------------------------------------------------------------------
+-- Overlaps from YAML file
+--------------------------------------------------------------------------------
+
+data ImportOverlaps = ImportOverlaps
+  { iOLGroup :: String
+  , iOLList  :: [ImportOverlapsList]
+  }
+
+instance Y.FromJSON ImportOverlaps where
+  parseJSON (Y.Object v) = ImportOverlaps
+                        <$> v Y..: "group"
+                        <*> v Y..: "overlapsList"
+  parseJSON _            = empty
+
+data ImportOverlapsList = ImportOverlapsList
+  { iOLAncode :: Integer
+  , iOL       :: [ImportOverlap]
+  }
+
+instance Y.FromJSON ImportOverlapsList where
+  parseJSON (Y.Object v) = ImportOverlapsList
+                        <$> v Y..: "ancode"
+                        <*> v Y..: "overlaps"
+  parseJSON _            = empty
+
+data ImportOverlap = ImportOverlap
+  { iOLOtherAncode :: Integer
+  , iOLSum         :: Integer
+  }
+
+instance Y.FromJSON ImportOverlap where
+    parseJSON (Y.Object v) = ImportOverlap
+                          <$> v Y..: "otherExam"
+                          <*> v Y..: "noOfStudents"
+    parseJSON _            = empty
+
+iOLToOL :: ImportOverlaps -> Overlaps
+iOLToOL (ImportOverlaps g rs) = Overlaps
+  { olGroup = read g
+  , olOverlaps = M.fromList
+        $ map (\(ImportOverlapsList a s) -> (a, M.fromList $ map toTupel s)) rs
+  }
+  where toTupel (ImportOverlap a s) = (a,s)
+
+iOLToOLList = map iOLToOL
+
+importOverlapsFromYAMLFile :: FilePath -> IO (Maybe [Overlaps])
+importOverlapsFromYAMLFile =
+    fmap (fmap iOLToOLList . Y.decode) . BSI.readFile
